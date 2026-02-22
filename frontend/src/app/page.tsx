@@ -12,6 +12,7 @@ export default function Home() {
   const [showDonorModal, setShowDonorModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSignupModal, setShowSignupModal] = useState(false);
 
   // Auth State
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -123,6 +124,47 @@ export default function Home() {
     alert('You have been successfully logged out.');
   }
 
+  async function handleUserSignup(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const formData = new FormData(e.currentTarget);
+    const fullName = formData.get('fullName') as string;
+    const email = formData.get('email') as string;
+    const phone = formData.get('phone') as string;
+
+    try {
+      // 1. Insert User (Role ID 4 is Recipient)
+      const { data: user, error: userErr } = await supabase
+        .from('users')
+        .insert([{
+          full_name: fullName,
+          email: email,
+          phone: phone,
+          password_hash: 'secure_hashed_password', // Mocked for this demo
+          role_id: 4
+        }])
+        .select()
+        .single();
+
+      if (userErr) throw userErr;
+
+      // 2. Link as Recipient so they can make requests
+      await supabase.from('recipients').insert([{ user_id: user.user_id }]);
+
+      // Automatically log the new user in
+      setCurrentUser(user);
+      localStorage.setItem('sarvamUser', JSON.stringify(user));
+
+      alert('Successfully signed up! You can now request blood for patients.');
+      setShowSignupModal(false);
+    } catch (error: any) {
+      alert('Error signing up: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleRegisterDonor(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -205,11 +247,27 @@ export default function Home() {
     const bloodGroupId = formData.get('bloodGroupId');
 
     try {
-      // Insert new request. (Hardcoding recipient_id to 1 for this demo, as you'd normally need auth)
+      // Find recipient_id for the current user
+      const { data: recipientRecord } = await supabase
+        .from('recipients')
+        .select('recipient_id')
+        .eq('user_id', currentUser.user_id)
+        .single();
+
+      let recipientId = 1; // Fallback to 1 just in case
+      if (recipientRecord) {
+        recipientId = recipientRecord.recipient_id;
+      } else {
+        // If a Donor (who isn't naturally a Recipient yet) tries to request blood, create a recipient profile for them on the fly
+        const { data: newRec } = await supabase.from('recipients').insert([{ user_id: currentUser.user_id }]).select().single();
+        if (newRec) recipientId = newRec.recipient_id;
+      }
+
+      // Insert new request. 
       const { error } = await supabase
         .from('blood_requests')
         .insert([{
-          recipient_id: 1,
+          recipient_id: recipientId,
           hospital_id: hospitalId,
           blood_group_id: bloodGroupId,
           units_required: units,
@@ -284,6 +342,9 @@ export default function Home() {
                 <>
                   <button className="btn btn-primary" onClick={() => setShowLoginModal(true)}>
                     Login
+                  </button>
+                  <button className="btn btn-outline" onClick={() => setShowSignupModal(true)}>
+                    Sign Up
                   </button>
                   <button className="btn btn-outline" onClick={() => setShowDonorModal(true)}>
                     Register as Donor
@@ -441,6 +502,37 @@ export default function Home() {
 
               <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
                 {isSubmitting ? 'Registering...' : 'Complete Registration'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Regular User Signup Modal */}
+      {showSignupModal && (
+        <div className="modal-overlay" onClick={() => !isSubmitting && setShowSignupModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowSignupModal(false)}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>Sign Up (View & Request Blood)</h2>
+
+            <form onSubmit={handleUserSignup}>
+              <div className="form-group">
+                <label>Full Name</label>
+                <input required type="text" name="fullName" className="form-control" placeholder="E.g., Adheeb" />
+              </div>
+
+              <div className="form-group">
+                <label>Email Address</label>
+                <input required type="email" name="email" className="form-control" placeholder="example@kerala.com" />
+              </div>
+
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input required type="tel" name="phone" className="form-control" placeholder="9000000000" />
+              </div>
+
+              <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                {isSubmitting ? 'Creating Account...' : 'Sign Up'}
               </button>
             </form>
           </div>
