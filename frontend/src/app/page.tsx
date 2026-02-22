@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import emailjs from '@emailjs/browser';
 
 export default function Home() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -113,7 +114,25 @@ export default function Home() {
 
       if (donorErr) throw donorErr;
 
-      alert('Successfully registered as a donor! Your data has been saved to the Supabase Database.');
+      // Send a Welcome Email via EmailJS
+      try {
+        await emailjs.send(
+          process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'dummy_service',
+          process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || 'dummy_template',
+          {
+            to_name: fullName,
+            to_email: email,
+            message: "Thank you for registering as a donor with Sarvam Maya. Your blood can save a life! We will notify you when someone in your district needs blood."
+          },
+          process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || 'dummy_public_key'
+        );
+        alert('Successfully registered! A Welcome Email has been sent to ' + email);
+      } catch (emailErr) {
+        console.error('Email sending failed:', emailErr);
+        // We still alert success since the DB entry worked
+        alert('Successfully registered as a donor. (EmailJS configuration pending for live emails)');
+      }
+
       setShowDonorModal(false);
     } catch (error: any) {
       alert('Error registering donor: ' + error.message);
@@ -155,6 +174,31 @@ export default function Home() {
       alert('Error requesting blood: ' + error.message);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleDonateClick(request: any) {
+    const donorEmail = prompt(`Thank you for choosing to donate to ${request.hospitalName}! Please enter your registered email address to contact them:`);
+    if (!donorEmail) return;
+
+    try {
+      await emailjs.send(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'dummy_service',
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_DONATION_ID || 'dummy_template',
+        {
+          hospital_name: request.hospitalName,
+          to_email: `contact@${request.hospitalName.toLowerCase().replace(/\s+/g, '')}.com`,
+          blood_group: request.bloodGroup,
+          units_required: request.units,
+          district_name: request.district,
+          donor_email: donorEmail
+        },
+        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || 'dummy_public_key'
+      );
+      alert('Thank you! An email has been successfully sent to the hospital notifying them of your arrival.');
+    } catch (err) {
+      console.error('EmailJS error:', err);
+      alert('There was an error sending the email via EmailJS Setup. Please check your Dashboard settings.');
     }
   }
 
@@ -234,7 +278,11 @@ export default function Home() {
                     {request.date}
                   </span>
                 </div>
-                <button className="btn btn-primary" style={{ padding: '0.5rem 1.5rem', alignSelf: 'stretch' }} onClick={() => alert('Connection to payment/donation scheduling gateway.')}>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '0.5rem 1.5rem', alignSelf: 'stretch' }}
+                  onClick={() => handleDonateClick(request)}
+                >
                   Donate Here
                 </button>
               </div>
