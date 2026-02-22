@@ -11,6 +11,10 @@ export default function Home() {
   // Modal states
   const [showDonorModal, setShowDonorModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Auth State
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Data for Select Dropdowns
   const [bloodGroups, setBloodGroups] = useState<any[]>([]);
@@ -22,6 +26,14 @@ export default function Home() {
 
   // Fetch initial data
   useEffect(() => {
+    const storedUser = localStorage.getItem('sarvamUser');
+    if (storedUser) {
+      try {
+        setCurrentUser(JSON.parse(storedUser));
+      } catch (e) {
+        // ignore JSON parse error
+      }
+    }
     fetchInitialData();
   }, []);
 
@@ -74,6 +86,42 @@ export default function Home() {
   }
 
   // --- FORM SUBMISSION HANDLERS ---
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+
+    try {
+      // Find the user by email
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !user) {
+        throw new Error('User not found. Please register as a donor first.');
+      }
+
+      setCurrentUser(user);
+      localStorage.setItem('sarvamUser', JSON.stringify(user));
+      alert(`Login successful! Welcome back, ${user.full_name}.`);
+      setShowLoginModal(false);
+    } catch (err: any) {
+      alert('Login Error: ' + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('sarvamUser');
+    setCurrentUser(null);
+    alert('You have been successfully logged out.');
+  }
 
   async function handleRegisterDonor(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -134,6 +182,10 @@ export default function Home() {
         alert('Successfully registered as a donor. (EmailJS configuration pending for live emails)');
       }
 
+      // Automatically log the new user in
+      setCurrentUser(user);
+      localStorage.setItem('sarvamUser', JSON.stringify(user));
+
       setShowDonorModal(false);
     } catch (error: any) {
       alert('Error registering donor: ' + error.message);
@@ -179,6 +231,12 @@ export default function Home() {
   }
 
   async function handleDonateClick(request: any) {
+    if (!currentUser) {
+      alert("Please login first to donate!");
+      setShowLoginModal(true);
+      return;
+    }
+
     try {
       await emailjs.send(
         process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'dummy_service',
@@ -189,7 +247,7 @@ export default function Home() {
           blood_group: request.bloodGroup,
           units_required: request.units,
           district_name: request.district,
-          donor_email: 'Anonymous Registered Donor'
+          donor_email: currentUser.email
         },
         process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || 'dummy_public_key'
       );
@@ -213,12 +271,28 @@ export default function Home() {
               Join the Sarvam Maya network. Connect directly with hospitals and patients in your district. Every drop counts.
             </p>
             <div className="hero-actions">
-              <button className="btn btn-primary" onClick={() => setShowDonorModal(true)}>
-                Register as Donor
-              </button>
-              <button className="btn btn-outline" onClick={() => setShowRequestModal(true)}>
-                Request Blood
-              </button>
+              {currentUser ? (
+                <>
+                  <button className="btn btn-primary" onClick={() => setShowRequestModal(true)}>
+                    Request Blood
+                  </button>
+                  <button className="btn btn-outline" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={handleLogout}>
+                    Logout ({currentUser.full_name})
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-primary" onClick={() => setShowLoginModal(true)}>
+                    Login
+                  </button>
+                  <button className="btn btn-outline" onClick={() => setShowDonorModal(true)}>
+                    Register as Donor
+                  </button>
+                  <button className="btn btn-outline" onClick={() => { alert('Please login first to request blood.'); setShowLoginModal(true); }}>
+                    Request Blood
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="grid-3">
@@ -305,6 +379,27 @@ export default function Home() {
 
       {/* --- MODALS --- */}
 
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="modal-overlay" onClick={() => !isSubmitting && setShowLoginModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowLoginModal(false)}>&times;</button>
+            <h2 style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>Login</h2>
+
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <label>Registered Email Address</label>
+                <input required type="email" name="email" className="form-control" placeholder="example@gmail.com" />
+              </div>
+
+              <button type="submit" disabled={isSubmitting} className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                {isSubmitting ? 'Logging in...' : 'Login Securely'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Donor Registration Modal */}
       {showDonorModal && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setShowDonorModal(false)}>
@@ -353,7 +448,7 @@ export default function Home() {
       )}
 
       {/* Blood Request Modal */}
-      {showRequestModal && (
+      {showRequestModal && currentUser && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setShowRequestModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowRequestModal(false)}>&times;</button>

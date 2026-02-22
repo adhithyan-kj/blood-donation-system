@@ -44,7 +44,7 @@ export default function RootLayout({
         {children}
         <footer>
           <div className="container">
-            <p>&copy; 2026 Sarvam Maya Blood Donation System. Micro Project by Amal, Adwaith & You.</p>
+            <p>&copy; 2026 Sarvam Maya - Blood Donation System</p>
           </div>
         </footer>
       </body>
