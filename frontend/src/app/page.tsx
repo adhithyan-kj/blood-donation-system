@@ -35,7 +35,7 @@ export default function Home() {
           units_required,
           priority,
           request_date,
-          hospitals ( hospital_name, districts(district_name) ),
+          hospitals ( hospital_name, email, districts(district_name) ),
           blood_groups ( group_name )
         `)
         .eq('status', 'PENDING')
@@ -46,6 +46,7 @@ export default function Home() {
           id: req.request_id,
           bloodGroup: req.blood_groups.group_name,
           hospitalName: req.hospitals.hospital_name,
+          hospitalEmail: req.hospitals.email,
           district: req.hospitals.districts.district_name,
           units: req.units_required,
           priority: req.priority,
@@ -178,24 +179,21 @@ export default function Home() {
   }
 
   async function handleDonateClick(request: any) {
-    const donorEmail = prompt(`Thank you for choosing to donate to ${request.hospitalName}! Please enter your registered email address to contact them:`);
-    if (!donorEmail) return;
-
     try {
       await emailjs.send(
         process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'dummy_service',
         process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_DONATION_ID || 'dummy_template',
         {
           hospital_name: request.hospitalName,
-          to_email: `contact@${request.hospitalName.toLowerCase().replace(/\s+/g, '')}.com`,
+          to_email: request.hospitalEmail,
           blood_group: request.bloodGroup,
           units_required: request.units,
           district_name: request.district,
-          donor_email: donorEmail
+          donor_email: 'Anonymous Registered Donor'
         },
         process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || 'dummy_public_key'
       );
-      alert('Thank you! An email has been successfully sent to the hospital notifying them of your arrival.');
+      alert('Thank you! An email has been successfully sent to the hospital automatically notifying them of your arrival.');
     } catch (err) {
       console.error('EmailJS error:', err);
       alert('There was an error sending the email via EmailJS Setup. Please check your Dashboard settings.');

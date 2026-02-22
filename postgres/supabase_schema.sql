@@ -42,6 +42,7 @@ CREATE TABLE districts (
 CREATE TABLE hospitals (
     hospital_id BIGSERIAL PRIMARY KEY,
     hospital_name VARCHAR(150) NOT NULL,
+    email VARCHAR(100),
     district_id INT NOT NULL REFERENCES districts(district_id),
     contact_phone VARCHAR(15)
 );
@@ -131,9 +132,9 @@ INSERT INTO recipients (recipient_id, user_id, blood_group_id, district_id) VALU
 
 SELECT setval('recipients_recipient_id_seq', (SELECT MAX(recipient_id) FROM recipients));
 
-INSERT INTO hospitals (hospital_id, hospital_name, district_id, contact_phone) VALUES 
-(1, 'Govt Medical College Thrissur', 4, '0487XXXXXX'),
-(2, 'Aster Medcity', 2, '0484XXXXXX') ON CONFLICT DO NOTHING;
+INSERT INTO hospitals (hospital_id, hospital_name, email, district_id, contact_phone) VALUES 
+(1, 'Govt Medical College Thrissur', 'contact@gmcthrissur.mock', 4, '0487XXXXXX'),
+(2, 'Aster Medcity', 'urgent@astermedcity.mock', 2, '0484XXXXXX') ON CONFLICT DO NOTHING;
 
 SELECT setval('hospitals_hospital_id_seq', (SELECT MAX(hospital_id) FROM hospitals));
 
